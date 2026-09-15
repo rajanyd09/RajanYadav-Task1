@@ -1,0 +1,56 @@
+const db = require('../db');
+
+exports.confirmSubmission = async (req, res) => {
+  const { assignmentId } = req.params;
+  
+  try {
+    const memberResult = await db.query('SELECT group_id FROM group_members WHERE user_id = $1', [req.user.id]);
+    
+    if (memberResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You must be part of a group to submit' });
+    }
+    
+    const groupId = memberResult.rows[0].group_id;
+    
+    const assignmentResult = await db.query('SELECT id FROM assignments WHERE id = $1', [assignmentId]);
+    if (assignmentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    const submitResult = await db.query(
+      `INSERT INTO submissions (assignment_id, group_id, status, submitted_at) 
+       VALUES ($1, $2, 'SUBMITTED', CURRENT_TIMESTAMP) 
+       ON CONFLICT (assignment_id, group_id) 
+       DO UPDATE SET status = 'SUBMITTED', submitted_at = CURRENT_TIMESTAMP 
+       RETURNING *`,
+      [assignmentId, groupId]
+    );
+
+    res.json({ message: 'Submission confirmed successfully', submission: submitResult.rows[0] });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+exports.getSubmissions = async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        s.id as submission_id,
+        s.status,
+        s.submitted_at,
+        a.title as assignment_title,
+        g.name as group_name,
+        g.id as group_id
+      FROM submissions s
+      JOIN assignments a ON s.assignment_id = a.id
+      JOIN groups g ON s.group_id = g.id
+      ORDER BY s.submitted_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
