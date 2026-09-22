@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import StudentDashboard from './pages/StudentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import CourseDetails from './pages/CourseDetails';
 
 function Navbar() {
   const { user, logout } = useContext(AuthContext);
@@ -90,6 +91,14 @@ function App() {
               element={
                 <ProtectedRoute role="ADMIN">
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/course/:id"
+              element={
+                <ProtectedRoute>
+                  <CourseDetails />
                 </ProtectedRoute>
               }
             />

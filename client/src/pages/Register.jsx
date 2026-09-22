@@ -1,24 +1,40 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { Mail, Lock, User, Shield, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, Shield, Eye, EyeOff } from 'lucide-react';
+import Alert from '../components/Alert';
 
 export default function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('STUDENT');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!name || !email || !password) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    
     setLoading(true);
     setError('');
+    setSuccess('');
     try {
       await api.post('/auth/register', { name, email, password, role });
-      navigate('/login');
+      setSuccess('Registration successful! Redirecting to login...');
+      setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to register. Please try again.');
     } finally {
@@ -40,12 +56,8 @@ export default function Register() {
 
         {/* Card */}
         <div className="card space-y-5">
-          {error && (
-            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-danger/10 border border-danger/20 text-danger text-sm">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          <Alert type="error" message={error} onClose={() => setError('')} />
+          <Alert type="success" message={success} />
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -86,13 +98,24 @@ export default function Register() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
                 <input
                   id="register-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="input-field pl-10"
+                  className="input-field pl-10 pr-10"
                   placeholder="Minimum 8 characters"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary focus:outline-none transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               </div>
             </div>
 

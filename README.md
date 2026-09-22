@@ -1,5 +1,13 @@
 # Joineazy - Assignment Management System
 
+### 👤 Author Details
+- **Name:** Rajan Yadav
+- **Email:** ry9996243@gmail.com
+- **Task No:** 1
+- **GitHub Link:** [rajanyd09/RajanYadav-Task1](https://github.com/rajanyd09/RajanYadav-Task1)
+- **Demo Video:** [Watch on Loom](https://www.loom.com/share/6434866b747c40048e28ca3717c06402)
+
+---
 ## 📖 Overview of Implementation
 Joineazy is a full-stack web application designed to streamline the assignment submission process between Professors (Admins) and Students. The application solves the problem of tracking group-based submissions by providing a unified platform where:
 - **Professors** can post assignments, attach OneDrive submission links, and track which groups have successfully submitted their work in real-time.

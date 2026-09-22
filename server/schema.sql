@@ -21,12 +21,29 @@ CREATE TABLE IF NOT EXISTS group_members (
   PRIMARY KEY (group_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS courses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  professor_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS course_enrollments (
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  student_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  enrolled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (course_id, student_id)
+);
+
 CREATE TABLE IF NOT EXISTS assignments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title VARCHAR(255) NOT NULL,
   description TEXT,
   due_date TIMESTAMP WITH TIME ZONE NOT NULL,
   onedrive_link VARCHAR(255) NOT NULL,
+  submission_type VARCHAR(50) DEFAULT 'GROUP' CHECK (submission_type IN ('INDIVIDUAL', 'GROUP')),
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
   created_by UUID REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -39,3 +56,6 @@ CREATE TABLE IF NOT EXISTS submissions (
   submitted_at TIMESTAMP WITH TIME ZONE,
   UNIQUE (assignment_id, group_id)
 );
+
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES courses(id) ON DELETE CASCADE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS submission_type VARCHAR(50) DEFAULT 'GROUP' CHECK (submission_type IN ('INDIVIDUAL', 'GROUP'));

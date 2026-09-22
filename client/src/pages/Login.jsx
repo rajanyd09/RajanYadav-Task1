@@ -2,11 +2,13 @@ import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
-import { Mail, Lock, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import Alert from '../components/Alert';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useContext(AuthContext);
@@ -14,6 +16,12 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      setError('Please fill in all fields.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
@@ -21,7 +29,7 @@ export default function Login() {
       login(response.data.user, response.data.token);
       navigate(response.data.user.role === 'STUDENT' ? '/student' : '/admin');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to login. Please try again.');
+      setError(err.response?.data?.error || 'Failed to login. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -41,12 +49,7 @@ export default function Login() {
 
         {/* Card */}
         <div className="card space-y-5">
-          {error && (
-            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-danger/10 border border-danger/20 text-danger text-sm">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          <Alert type="error" message={error} onClose={() => setError('')} />
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -71,13 +74,24 @@ export default function Login() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
                 <input
                   id="login-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="input-field pl-10"
+                  className="input-field pl-10 pr-10"
                   placeholder="••••••••"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary focus:outline-none transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               </div>
             </div>
 

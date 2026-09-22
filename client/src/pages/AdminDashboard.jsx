@@ -2,61 +2,35 @@ import React, { useState, useEffect, useContext } from 'react';
 import api from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import {
-  BookOpen, Activity, Plus, LogOut, Clock, ExternalLink,
-  CheckCircle, Users, BarChart2, Inbox, AlertCircle, ChevronDown, ChevronUp, Loader2
-} from 'lucide-react';
-
-// Stat Card 
-function StatCard({ label, value, icon: Icon, accent }) {
-  const colors = {
-    accent: 'text-accent bg-accent/10 border-accent/20',
-    success: 'text-success bg-success/10 border-success/20',
-    warning: 'text-warning bg-warning/10 border-warning/20',
-  };
-  return (
-    <div className="card flex items-center gap-4">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${colors[accent]}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="text-text-muted text-xs">{label}</p>
-        <p className="text-2xl font-bold text-text-primary">{value}</p>
-      </div>
-    </div>
-  );
-}
+import { BookOpen, Plus, Loader2, Users, Activity, FileText, CheckCircle, ChevronRight, User as UserIcon } from 'lucide-react';
+import Alert from '../components/Alert';
 
 export default function AdminDashboard() {
-  const { user, logout } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [assignments, setAssignments] = useState([]);
-  const [submissions, setSubmissions] = useState([]);
-  const [groups, setGroups] = useState([]);
+  
+  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [formError, setFormError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [expandedSub, setExpandedSub] = useState(null);
+  
+  // Selection and details state
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
 
-  // Form state
+  // Course creation form
+  const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [onedriveLink, setOnedriveLink] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [assignRes, subRes, groupRes] = await Promise.all([
-        api.get('/assignments'),
-        api.get('/submissions'),
-        api.get('/groups'),
-      ]);
-      setAssignments(assignRes.data);
-      setSubmissions(subRes.data);
-      setGroups(groupRes.data);
+      const res = await api.get('/courses');
+      setCourses(res.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -64,295 +38,216 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleCreateAssignment = async (e) => {
+  const fetchCourseSubmissions = async (courseId) => {
+    setSubmissionsLoading(true);
+    try {
+      const res = await api.get(`/courses/${courseId}/all-submissions`);
+      setSubmissions(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmissionsLoading(false);
+    }
+  };
+
+  const handleSelectCourse = (course) => {
+    setSelectedCourse(course);
+    fetchCourseSubmissions(course.id);
+  };
+
+  const handleCreateCourse = async (e) => {
     e.preventDefault();
-    setFormError('');
+    setError('');
     setSubmitting(true);
     try {
-      await api.post('/assignments', {
-        title,
-        description,
-        due_date: new Date(dueDate).toISOString(),
-        onedrive_link: onedriveLink,
-      });
-      setTitle(''); setDescription(''); setDueDate(''); setOnedriveLink('');
+      await api.post('/courses', { title, description });
+      setTitle(''); setDescription(''); setShowForm(false);
       fetchData();
     } catch (err) {
-      setFormError(err.response?.data?.error || 'Failed to create assignment');
+      setError(err.response?.data?.error || 'Failed to create course');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleLogout = () => { logout(); navigate('/login'); };
-
-  const submittedCount = submissions.length;
-  const pendingCount = assignments.length > 0
-    ? (assignments.length * Math.max(1, [...new Set(submissions.map(s => s.group_id))].length)) - submittedCount
-    : 0;
-
   return (
-    <div className="space-y-6">
-      
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Professor Dashboard</h1>
-          <p className="text-text-muted text-sm mt-0.5">
-            Signed in as <span className="text-text-secondary font-medium">{user?.name}</span>
-          </p>
-        </div>
-        
-      </div>
-
-      
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total Assignments" value={assignments.length} icon={BookOpen} accent="accent" />
-        <StatCard label="Submissions Received" value={submittedCount} icon={CheckCircle} accent="success" />
-        <StatCard label="Pending Confirmations" value={Math.max(0, pendingCount)} icon={Clock} accent="warning" />
-      </div>
-
-      {/* ── Create + Assignment List ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Create Assignment Form */}
-        <div className="card space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
-              <Plus className="h-4 w-4 text-accent" />
-            </div>
-            <h2 className="font-semibold text-text-primary">Post New Assignment</h2>
+    <div className="flex h-[calc(100vh-6rem)] -mx-4 sm:-mx-8">
+      {/* Sidebar */}
+      <div className="w-80 border-r border-border bg-bg-base flex flex-col h-full overflow-hidden shrink-0">
+        <div className="p-4 border-b border-border space-y-4">
+          <div>
+            <h1 className="text-xl font-bold text-text-primary">Professor Dashboard</h1>
+            <p className="text-text-muted text-xs mt-0.5">
+              Signed in as <span className="text-text-secondary font-medium">{user?.name}</span>
+            </p>
           </div>
-
-          {formError && (
-            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-danger/10 border border-danger/20 text-danger text-sm">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>{formError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleCreateAssignment} className="space-y-3">
-            <div>
-              <label className="input-label">Title</label>
-              <input
-                id="assignment-title"
-                type="text"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                className="input-field"
-                placeholder="e.g. Project Report"
-                required
-              />
-            </div>
-            <div>
-              <label className="input-label">Description <span className="text-text-muted">(optional)</span></label>
-              <textarea
-                id="assignment-description"
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                className="input-field resize-none"
-                rows="3"
-                placeholder="Assignment details…"
-              />
-            </div>
-            <div>
-              <label className="input-label">Due Date</label>
-              <input
-                id="assignment-due-date"
-                type="date"
-                value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
-                className="input-field"
-                required
-              />
-            </div>
-            <div>
-              <label className="input-label">OneDrive Submission Link</label>
-              <input
-                id="assignment-link"
-                type="url"
-                value={onedriveLink}
-                onChange={e => setOnedriveLink(e.target.value)}
-                className="input-field"
-                placeholder="https://onedrive.live.com/…"
-                required
-              />
-            </div>
-            <button
-              id="assignment-submit"
-              type="submit"
-              disabled={submitting}
-              className="btn-primary w-full mt-1"
-            >
-              {submitting
-                ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <><Plus className="h-4 w-4" /> Create Assignment</>
-              }
-            </button>
-          </form>
+          <button onClick={() => setShowForm(!showForm)} className="btn-primary w-full justify-center py-2">
+            <Plus className="h-4 w-4" /> {showForm ? 'Cancel Creation' : 'New Course'}
+          </button>
         </div>
 
-        {/* Assignments List */}
-        <div className="card space-y-3 max-h-[560px] overflow-y-auto scrollbar-dark">
-          <div className="flex items-center gap-2 mb-1 sticky top-0 bg-bg-card pb-2">
-            <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
-              <BookOpen className="h-4 w-4 text-accent" />
-            </div>
-            <h2 className="font-semibold text-text-primary">Current Assignments</h2>
-            <span className="badge-muted ml-auto">{assignments.length}</span>
-          </div>
-
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {loading ? (
             <div className="flex justify-center py-10">
-              <Loader2 className="h-6 w-6 text-accent animate-spin" />
+              <Loader2 className="h-5 w-5 text-accent animate-spin" />
             </div>
-          ) : assignments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
-              <Inbox className="h-8 w-8 text-text-muted" />
-              <p className="text-text-muted text-sm">No assignments posted yet</p>
-            </div>
+          ) : courses.length === 0 ? (
+            <p className="text-text-muted text-sm text-center mt-6">No courses created yet.</p>
           ) : (
-            assignments.map(a => {
-              const isPast = new Date(a.due_date) < new Date();
-              return (
-                <div key={a.id} className="p-4 rounded-xl border border-border bg-bg-elevated hover:border-border/80 transition-colors space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-medium text-text-primary text-sm">{a.title}</h3>
-                    {isPast
-                      ? <span className="badge-danger shrink-0 text-[10px]">Overdue</span>
-                      : <span className="badge-success shrink-0 text-[10px]">Active</span>
-                    }
+            courses.map(course => (
+              <button
+                key={course.id}
+                onClick={() => handleSelectCourse(course)}
+                className={`w-full text-left p-3 rounded-lg transition-all flex items-center justify-between group ${
+                  selectedCourse?.id === course.id 
+                    ? 'bg-accent/10 border border-accent/20' 
+                    : 'bg-bg-elevated border border-transparent hover:border-border'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`p-1.5 rounded-md ${selectedCourse?.id === course.id ? 'bg-accent/20' : 'bg-border/50'}`}>
+                    <BookOpen className={`h-4 w-4 ${selectedCourse?.id === course.id ? 'text-accent' : 'text-text-muted'}`} />
                   </div>
-                  {a.description && <p className="text-xs text-text-muted line-clamp-2">{a.description}</p>}
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="flex items-center gap-1 text-xs text-text-muted">
-                      <Clock className="h-3 w-3" />
-                      {new Date(a.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </span>
-                    <a
-                      href={a.onedrive_link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1 text-accent hover:text-accent-hover text-xs transition-colors"
-                    >
-                      <ExternalLink className="h-3 w-3" /> OneDrive
-                    </a>
+                  <div>
+                    <h3 className={`font-semibold text-sm ${selectedCourse?.id === course.id ? 'text-accent' : 'text-text-primary'}`}>
+                      {course.title}
+                    </h3>
+                    <p className="text-xs text-text-muted mt-0.5">{course.student_count || 0} Students</p>
                   </div>
                 </div>
-              );
-            })
+                <ChevronRight className={`h-4 w-4 transition-transform ${selectedCourse?.id === course.id ? 'text-accent' : 'text-text-muted opacity-0 group-hover:opacity-100'}`} />
+              </button>
+            ))
           )}
         </div>
       </div>
 
-      {/* ── Submission Tracking Table ── */}
-      <div className="card">
-        <div className="flex items-center gap-2 mb-5">
-          <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
-            <Activity className="h-4 w-4 text-accent" />
-          </div>
-          <h2 className="font-semibold text-text-primary">Submission Tracking</h2>
-          <span className="badge-muted ml-auto">{submissions.length} submissions</span>
-        </div>
+      {/* Main Content */}
+      <div className="flex-1 bg-bg-base overflow-y-auto p-6 md:p-8">
+        {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
-        <div className="overflow-x-auto scrollbar-dark rounded-xl">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Group</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Assignment</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Submitted At</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {loading ? (
-                <tr>
-                  <td colSpan="4" className="py-10 text-center">
-                    <Loader2 className="h-6 w-6 text-accent animate-spin mx-auto" />
-                  </td>
-                </tr>
+        {showForm && (
+          <div className="card max-w-xl mb-6">
+            <h2 className="font-semibold text-text-primary mb-4">New Course</h2>
+            <form onSubmit={handleCreateCourse} className="space-y-3">
+              <div>
+                <label className="input-label">Course Title</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="input-field" placeholder="e.g. Advanced Data Structures" required />
+              </div>
+              <div>
+                <label className="input-label">Description</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} className="input-field resize-none" rows="3" placeholder="Course overview..." />
+              </div>
+              <button type="submit" disabled={submitting} className="btn-primary w-full mt-2">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Course'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {!selectedCourse ? (
+          <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto opacity-60">
+            <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-4">
+              <BookOpen className="h-8 w-8 text-accent" />
+            </div>
+            <h2 className="text-xl font-bold text-text-primary mb-2">Select a Course</h2>
+            <p className="text-text-muted text-sm">Choose a course from the sidebar to view its details, assignments, and submissions.</p>
+          </div>
+        ) : (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Course Header */}
+            <div className="card flex justify-between items-start gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-text-primary mb-2">{selectedCourse.title}</h2>
+                <p className="text-text-muted mb-4">{selectedCourse.description}</p>
+                <div className="flex gap-4">
+                  <div className="bg-bg-base px-3 py-1.5 rounded-lg border border-border flex items-center gap-2 text-sm text-text-secondary">
+                    <Users className="h-4 w-4 text-accent" /> {selectedCourse.student_count || 0} Students
+                  </div>
+                  <div className="bg-bg-base px-3 py-1.5 rounded-lg border border-border flex items-center gap-2 text-sm text-text-secondary">
+                    <Activity className="h-4 w-4 text-warning" /> {selectedCourse.submission_count || 0} Total Submissions
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => navigate(`/course/${selectedCourse.id}`)} className="btn-secondary text-sm shrink-0">
+                Manage Assignments <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Submissions Table */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <FileText className="h-5 w-5 text-accent" />
+                <h3 className="text-xl font-bold text-text-primary">Submissions Tracker</h3>
+              </div>
+
+              {submissionsLoading ? (
+                <div className="flex justify-center py-10 card">
+                  <Loader2 className="h-6 w-6 text-accent animate-spin" />
+                </div>
               ) : submissions.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="px-4 py-10 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <Inbox className="h-6 w-6 text-text-muted" />
-                      <p className="text-text-muted text-sm">No submissions yet</p>
-                    </div>
-                  </td>
-                </tr>
+                <div className="card text-center py-12">
+                  <p className="text-text-muted">No submissions have been recorded for this course yet.</p>
+                </div>
               ) : (
-                submissions.map(sub => {
-                  const isExpanded = expandedSub === sub.submission_id;
-                  const groupInfo = groups.find(g => g.id === sub.group_id);
-                  
-                  return (
-                    <React.Fragment key={sub.submission_id}>
-                      <tr 
-                        className="hover:bg-bg-elevated/50 transition-colors cursor-pointer"
-                        onClick={() => setExpandedSub(isExpanded ? null : sub.submission_id)}
-                      >
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
-                              <span className="text-accent text-[10px] font-bold">{sub.group_name?.[0]?.toUpperCase()}</span>
-                            </div>
-                            <span className="text-sm font-medium text-text-primary">{sub.group_name}</span>
-                            {isExpanded ? (
-                              <ChevronUp className="h-4 w-4 text-text-muted ml-1" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-text-muted ml-1" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="text-sm text-text-secondary">{sub.assignment_title}</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="badge-success">
-                            <CheckCircle className="h-3 w-3" /> {sub.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="text-xs text-text-muted">
-                            {new Date(sub.submitted_at).toLocaleString('en-IN', {
-                              day: 'numeric', month: 'short', year: 'numeric',
-                              hour: '2-digit', minute: '2-digit'
-                            })}
-                          </span>
-                        </td>
-                      </tr>
-                      {isExpanded && groupInfo && (
-                        <tr className="bg-bg-elevated/30">
-                          <td colSpan="4" className="px-4 py-3 border-t border-border/50">
-                            <div className="pl-8">
-                              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Group Members</p>
-                              <div className="flex flex-wrap gap-2">
-                                {groupInfo.members && groupInfo.members.length > 0 ? (
-                                  groupInfo.members.map(member => (
-                                    <div key={member.id} className="flex items-center gap-2 bg-bg-card border border-border rounded-lg px-2.5 py-1.5">
-                                      <div className="w-5 h-5 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-                                        <span className="text-accent text-[9px] font-bold">{member.name?.[0]?.toUpperCase()}</span>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-medium text-text-primary">{member.name}</p>
-                                        <p className="text-[10px] text-text-muted">{member.email}</p>
-                                      </div>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <p className="text-xs text-text-muted">No members found</p>
-                                )}
-                              </div>
-                            </div>
-                          </td>
+                <div className="overflow-hidden border border-border rounded-xl bg-bg-elevated shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-bg-base/50 text-text-muted border-b border-border">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Assignment</th>
+                          <th className="px-4 py-3 font-medium">Submitted By</th>
+                          <th className="px-4 py-3 font-medium">Type</th>
+                          <th className="px-4 py-3 font-medium">Date</th>
+                          <th className="px-4 py-3 font-medium">Status</th>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })
+                      </thead>
+                      <tbody className="divide-y divide-border/50">
+                        {submissions.map((sub) => (
+                          <tr key={sub.submission_id} className="hover:bg-bg-base/50 transition-colors">
+                            <td className="px-4 py-3">
+                              <span className="font-semibold text-text-primary">{sub.assignment_title}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {sub.submission_type === 'INDIVIDUAL' ? (
+                                <div className="flex items-center gap-2 text-text-primary">
+                                  <UserIcon className="h-3.5 w-3.5 text-accent" />
+                                  <span>{sub.student_name}</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 text-text-primary">
+                                  <Users className="h-3.5 w-3.5 text-warning" />
+                                  <span>{sub.group_name}</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${
+                                sub.submission_type === 'INDIVIDUAL' ? 'bg-accent/10 text-accent' : 'bg-warning/10 text-warning'
+                              }`}>
+                                {sub.submission_type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-text-muted">
+                              {new Date(sub.submitted_at).toLocaleDateString('en-IN', {
+                                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                              })}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="badge-success inline-flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" /> Submitted
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

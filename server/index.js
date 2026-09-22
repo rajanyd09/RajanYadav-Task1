@@ -14,11 +14,13 @@ const authRoutes = require('./routes/auth');
 const groupRoutes = require('./routes/groups');
 const assignmentRoutes = require('./routes/assignments');
 const submissionRoutes = require('./routes/submissions');
+const courseRoutes = require('./routes/courses');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
+app.use('/api/courses', courseRoutes);
 
 
 const initDB = require('./init');
